@@ -10,25 +10,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.bson.Document
 
-//TODO:getUser() DONE
-//TODO:forgotUsername() DONE
-//TODO:verifyOTP() DONE
-//TODO:login() done
-//TODO:signUp() done
-//TODO:forgotPassword() dONE
-//TODO:updatePFP() Done
-//TODO:updateOTP() DONE
-//TODO:savePost() done
-//TODO:unsavePost() done
-
-val client = LocalHttpClient().getClient()
+val userClient = LocalHttpClient().getClient()
 const val rootUserUrl = "https://kitme.xyz:8443/kitme/api/users"
 
 //Returns A JSON with the user credentials or an error message
 fun getUser(userID: String, scope: CoroutineScope): String{
     var wasSuccessful = "An error occurred."
     scope.launch(Dispatchers.IO){
-        val getUserResponse = client.get("$rootUserUrl/getUser/$userID")
+        val getUserResponse = userClient.get("$rootUserUrl/getUser/$userID")
         val responseDocument = Document.parse(getUserResponse.body<String>())
         if (responseDocument.toJson().contains("wasSuccessful")) {
             wasSuccessful = responseDocument.get("wasSuccessful") as String
@@ -43,7 +32,7 @@ fun getUser(userID: String, scope: CoroutineScope): String{
 fun forgotUsername(email: String, scope: CoroutineScope): String{
     var wasSuccessful = "An error occurred."
     scope.launch(Dispatchers.IO){
-        val forgotUsernameResponse = client.get("$rootUserUrl/emailUsername/$email")
+        val forgotUsernameResponse = userClient.get("$rootUserUrl/emailUsername/$email")
         val responseDocument = Document.parse(forgotUsernameResponse.body<String>())
         wasSuccessful = responseDocument.get("wasSuccessful") as String
     }
@@ -54,7 +43,7 @@ fun forgotUsername(email: String, scope: CoroutineScope): String{
 fun verifyOTP(scope: CoroutineScope, token: String, otp: Int): Boolean{
     var wasSuccessful = false
     scope.launch {
-        val verifyOTPResponse: HttpResponse = client.submitForm(
+        val verifyOTPResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/verifyOTP",
             formParameters = parameters {
                 append("token", token)
@@ -71,7 +60,7 @@ fun verifyOTP(scope: CoroutineScope, token: String, otp: Int): Boolean{
 fun updateOTP(scope: CoroutineScope, token: String): String{
     var wasSuccessful = "An error occurred."
     scope.launch {
-        val updateOTPResponse: HttpResponse = client.submitForm(
+        val updateOTPResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/updateOTP",
             formParameters = parameters {
                 append("token", token)
@@ -87,7 +76,7 @@ fun updateOTP(scope: CoroutineScope, token: String): String{
 fun login(scope: CoroutineScope, username: String, password: String, captcha: String): String{
     var wasSuccessful = "An error occurred."
     scope.launch {
-        val loginResponse: HttpResponse = client.submitForm(
+        val loginResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/login",
             formParameters = parameters {
                 append("username", username)
@@ -112,7 +101,7 @@ fun login(scope: CoroutineScope, username: String, password: String, captcha: St
 fun signUp(scope: CoroutineScope, email: String, username: String, password: String, captcha: String): String{
     var wasSuccessful = "An error occurred."
     scope.launch {
-        val signUpResponse: HttpResponse = client.submitForm(
+        val signUpResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/signUp",
             formParameters = parameters {
                 append("username", username)
@@ -138,7 +127,7 @@ fun signUp(scope: CoroutineScope, email: String, username: String, password: Str
 fun forgotPassword(scope: CoroutineScope, username: String, otp: Int, newPassword: String): Boolean{
     var wasSuccessful = false
     scope.launch(Dispatchers.IO){
-        val forgotPasswordResponse: HttpResponse = client.submitForm (
+        val forgotPasswordResponse: HttpResponse = userClient.submitForm (
             url = "$rootUserUrl/forgotPassword",
             formParameters = parameters {
                 append("usernameOrEmail", username)
@@ -156,7 +145,7 @@ fun forgotPassword(scope: CoroutineScope, username: String, otp: Int, newPasswor
 fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String{
     var wasSuccessful = "An error occurred."
     scope.launch {
-        val updatePicture: HttpResponse = client.submitForm(
+        val updatePicture: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/updateProfilePicture",
             formParameters = parameters {
                 append("token", token)
@@ -173,7 +162,7 @@ fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String
 fun savePostAction(scope: CoroutineScope, token: String, postOID: String , save: Boolean): String{
     var wasSuccessful = "An error occurred."
     scope.launch {
-        val saveActionResponse: HttpResponse = client.submitForm(
+        val saveActionResponse: HttpResponse = userClient.submitForm(
             url = rootUserUrl + if(save) "/savePost" else "/unsavePost",
             formParameters = parameters {
                 append("token", token)
