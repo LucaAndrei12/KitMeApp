@@ -90,7 +90,7 @@ fun getFeed(token: String, scope: CoroutineScope): ArrayList<String>{
 
 //Returns json with the post or an error message. To tell them apart, use contains("{")
 fun getPostInfo(postOID: String, scope: CoroutineScope): String{
-    var postOrError: String = "An error occurred."
+    var postOrError = "An error occurred."
     scope.launch(Dispatchers.IO) {
         val getPostResponse = postClient.get("$rootPostUrl/getPostInfo/$postOID")
         if(getPostResponse.body<String>().contains("wasSuccessful")){
