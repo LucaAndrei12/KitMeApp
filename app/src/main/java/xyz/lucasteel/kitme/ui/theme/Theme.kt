@@ -99,6 +99,7 @@ fun KitMeAppTheme(
 
     MaterialTheme(
         colorScheme = colorScheme,
-        content = content
+        content = content,
+        typography = Typography
     )
 }
