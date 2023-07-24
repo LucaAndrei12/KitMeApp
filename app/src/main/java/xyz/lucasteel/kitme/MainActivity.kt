@@ -14,7 +14,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             KitMeAppTheme {
                 val navController = rememberNavController()
-                NavHost(navController = navController, startDestination = "homeScreen") {
+                NavHost(navController = navController, startDestination = "loginScreen") {
 
                     composable(route = "homeScreen") {
                         HomeScreen(navController = navController)

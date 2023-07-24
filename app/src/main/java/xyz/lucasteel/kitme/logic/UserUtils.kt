@@ -1,5 +1,6 @@
 package xyz.lucasteel.kitme.logic
 
+import android.content.Context
 import io.ktor.client.call.body
 import io.ktor.client.request.forms.submitForm
 import io.ktor.client.request.get
@@ -9,9 +10,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.bson.Document
+import java.io.File
+import java.io.FileWriter
+import java.util.Scanner
 
 val userClient = LocalHttpClient().getClient()
 const val rootUserUrl = "https://kitme.xyz:8443/kitme/api/users"
+const val fileName = "token-file"
 
 //Returns A JSON with the user credentials or an error message
 fun getUser(userID: String, scope: CoroutineScope): String{
@@ -175,6 +180,34 @@ fun savePostAction(scope: CoroutineScope, token: String, postOID: String , save:
     return wasSuccessful
 }
 
+fun saveTokenToFile(context: Context, token: String){
+    val tokenFile = File(context.filesDir, fileName)
+        tokenFile.createNewFile()
+        val fileWriter = FileWriter(tokenFile)
+        fileWriter.write(token)
+        fileWriter.close()
+        fileWriter.flush()
+}
+
+fun isTokenAvailable(context: Context): Boolean{
+    val tokenFile = File(context.filesDir, fileName)
+    if(tokenFile.exists()){
+        val fileReader = Scanner(tokenFile)
+        if(fileReader.hasNextLine()){
+            return true
+        }
+         return false
+    } else{
+        return false
+    }
+}
+
+fun getToken(context: Context): String {
+    val tokenFile = File(context.filesDir, fileName)
+    val scanner = Scanner(tokenFile)
+    scanner.close()
+    return scanner.nextLine()
+}
 
 
 
