@@ -8,6 +8,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.http.parameters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import org.bson.Document
 import java.io.File
@@ -18,15 +19,17 @@ val userClient = LocalHttpClient().getClient()
 const val rootUserUrl = "https://kitme.xyz:8443/kitme/api/users"
 const val fileName = "token-file"
 
+//TODO: MAKE ALL METHODS SUSPEND
+
 //Returns A JSON with the user credentials or an error message
-fun getUser(userID: String, scope: CoroutineScope): String{
+fun getUser(userID: String, scope: CoroutineScope): String {
     var wasSuccessful = "An error occurred."
-    scope.launch(Dispatchers.IO){
+    scope.launch(Dispatchers.IO) {
         val getUserResponse = userClient.get("$rootUserUrl/getUser/$userID")
         val responseDocument = Document.parse(getUserResponse.body<String>())
         if (responseDocument.toJson().contains("wasSuccessful")) {
             wasSuccessful = responseDocument.get("wasSuccessful") as String
-        } else{
+        } else {
             wasSuccessful = responseDocument.toJson()
         }
     }
@@ -34,9 +37,9 @@ fun getUser(userID: String, scope: CoroutineScope): String{
 }
 
 //Returns either "true" if the operation was successful or and error message - emails the user
-fun forgotUsername(email: String, scope: CoroutineScope): String{
+fun forgotUsername(email: String, scope: CoroutineScope): String {
     var wasSuccessful = "An error occurred."
-    scope.launch(Dispatchers.IO){
+    scope.launch(Dispatchers.IO) {
         val forgotUsernameResponse = userClient.get("$rootUserUrl/emailUsername/$email")
         val responseDocument = Document.parse(forgotUsernameResponse.body<String>())
         wasSuccessful = responseDocument.get("wasSuccessful") as String
@@ -45,9 +48,9 @@ fun forgotUsername(email: String, scope: CoroutineScope): String{
 }
 
 //Returns if the OTP provided is the right one for the user corresponding to the token
-fun verifyOTP(scope: CoroutineScope, token: String, otp: Int): Boolean{
+fun verifyOTP(scope: CoroutineScope, token: String, otp: Int): Boolean {
     var wasSuccessful = false
-    scope.launch {
+    scope.launch(Dispatchers.IO) {
         val verifyOTPResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/verifyOTP",
             formParameters = parameters {
@@ -62,9 +65,9 @@ fun verifyOTP(scope: CoroutineScope, token: String, otp: Int): Boolean{
 }
 
 //Returns either "true" if the operation was successful or and error message
-fun updateOTP(scope: CoroutineScope, token: String): String{
+fun updateOTP(scope: CoroutineScope, token: String): String {
     var wasSuccessful = "An error occurred."
-    scope.launch {
+    scope.launch(Dispatchers.IO) {
         val updateOTPResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/updateOTP",
             formParameters = parameters {
@@ -78,10 +81,15 @@ fun updateOTP(scope: CoroutineScope, token: String): String{
 }
 
 //Returns an error message or A JSON with the field "token" that contains the token
-fun login(scope: CoroutineScope, username: String, password: String, captcha: String): String{
-    var wasSuccessful = "An error occurred."
-    scope.launch {
-        val loginResponse: HttpResponse = userClient.submitForm(
+suspend fun login(
+    scope: CoroutineScope,
+    username: String,
+    password: String,
+    captcha: String
+): String {
+    var wasSuccessful: String
+    val loginResponse: HttpResponse = scope.async {
+        userClient.submitForm(
             url = "$rootUserUrl/login",
             formParameters = parameters {
                 append("username", username)
@@ -89,50 +97,61 @@ fun login(scope: CoroutineScope, username: String, password: String, captcha: St
                 append("captchaToken", captcha)
             }
         )
-        val responseDocument = Document.parse(loginResponse.body<String>())
-        //Parses the response and chooses either the field "token" or "wasSuccessful" - I was dumb when I made the backend, sorry
-        if(responseDocument.toJson().contains("token")){
-            wasSuccessful = responseDocument as String
-        } else if(responseDocument.toJson().contains("wasSuccessful")){
-            wasSuccessful = responseDocument.get("wasSuccessful") as String
-        } else{
-            wasSuccessful = responseDocument.toJson()
-        }
+    }.await()
+    val responseDocument = Document.parse(loginResponse.body<String>())
+    //Parses the response and chooses either the field "token" or "wasSuccessful" - I was dumb when I made the backend, sorry
+    if (responseDocument.toJson().contains("token")) {
+        wasSuccessful = responseDocument.toJson()
+    } else if (responseDocument.toJson().contains("wasSuccessful")) {
+        wasSuccessful = responseDocument.get("wasSuccessful") as String
+    } else {
+        wasSuccessful = responseDocument.toJson()
     }
     return wasSuccessful
 }
 
 //Returns an error message or A JSON with the field "token" that contains the token
-fun signUp(scope: CoroutineScope, email: String, username: String, password: String, captcha: String): String{
-    var wasSuccessful = "An error occurred."
-    scope.launch {
-        val signUpResponse: HttpResponse = userClient.submitForm(
-            url = "$rootUserUrl/signUp",
-            formParameters = parameters {
-                append("username", username)
-                append("password", password)
-                append("captchaToken", captcha)
-                append("email", email)
+suspend fun signUp(
+    scope: CoroutineScope,
+    email: String,
+    username: String,
+    password: String,
+    captcha: String
+): String {
+    var wasSuccessful : String
+        val signUpResponse: HttpResponse = scope.async {
+            userClient.submitForm(
+                url = "$rootUserUrl/signUp",
+                formParameters = parameters {
+                    append("username", username)
+                    append("password", password)
+                    append("captchaToken", captcha)
+                    append("email", email)
+                }
+            )
+        }.await()
+            val responseDocument = Document.parse(signUpResponse.body<String>())
+            //Parses the response and chooses either the field "token" or "wasSuccessful" - I was dumb when I made the backend, sorry
+            if (responseDocument.toJson().contains("token")) {
+                wasSuccessful = responseDocument.toJson()
+            } else if (responseDocument.toJson().contains("wasSuccessful")) {
+                wasSuccessful = responseDocument.get("wasSuccessful") as String
+            } else {
+                wasSuccessful = responseDocument.toJson()
             }
-        )
-        val responseDocument = Document.parse(signUpResponse.body<String>())
-        //Parses the response and chooses either the field "token" or "wasSuccessful" - I was dumb when I made the backend, sorry
-        if(responseDocument.toJson().contains("token")){
-            wasSuccessful = responseDocument as String
-        } else if(responseDocument.toJson().contains("wasSuccessful")){
-            wasSuccessful = responseDocument.get("wasSuccessful") as String
-        } else{
-            wasSuccessful = responseDocument.toJson()
-        }
-    }
     return wasSuccessful
 }
 
 //Returns true if the operation was successful and false if not. UPDATE OTP BEFORE USE !!!
-fun forgotPassword(scope: CoroutineScope, username: String, otp: Int, newPassword: String): Boolean{
+fun forgotPassword(
+    scope: CoroutineScope,
+    username: String,
+    otp: Int,
+    newPassword: String
+): Boolean {
     var wasSuccessful = false
-    scope.launch(Dispatchers.IO){
-        val forgotPasswordResponse: HttpResponse = userClient.submitForm (
+    scope.launch(Dispatchers.IO) {
+        val forgotPasswordResponse: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/forgotPassword",
             formParameters = parameters {
                 append("usernameOrEmail", username)
@@ -147,9 +166,9 @@ fun forgotPassword(scope: CoroutineScope, username: String, otp: Int, newPasswor
 }
 
 //Returns either "true" if the operation was successful or and error message
-fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String{
+fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String {
     var wasSuccessful = "An error occurred."
-    scope.launch {
+    scope.launch(Dispatchers.IO) {
         val updatePicture: HttpResponse = userClient.submitForm(
             url = "$rootUserUrl/updateProfilePicture",
             formParameters = parameters {
@@ -164,11 +183,11 @@ fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String
 }
 
 //Returns either "true" if the operation was successful or and error message
-fun savePostAction(scope: CoroutineScope, token: String, postOID: String , save: Boolean): String{
+fun savePostAction(scope: CoroutineScope, token: String, postOID: String, save: Boolean): String {
     var wasSuccessful = "An error occurred."
-    scope.launch {
+    scope.launch(Dispatchers.IO) {
         val saveActionResponse: HttpResponse = userClient.submitForm(
-            url = rootUserUrl + if(save) "/savePost" else "/unsavePost",
+            url = rootUserUrl + if (save) "/savePost" else "/unsavePost",
             formParameters = parameters {
                 append("token", token)
                 append("postOID", postOID)
@@ -180,24 +199,24 @@ fun savePostAction(scope: CoroutineScope, token: String, postOID: String , save:
     return wasSuccessful
 }
 
-fun saveTokenToFile(context: Context, token: String){
+fun saveTokenToFile(context: Context, token: String) {
     val tokenFile = File(context.filesDir, fileName)
-        tokenFile.createNewFile()
-        val fileWriter = FileWriter(tokenFile)
-        fileWriter.write(token)
-        fileWriter.close()
-        fileWriter.flush()
+    tokenFile.createNewFile()
+    val fileWriter = FileWriter(tokenFile)
+    fileWriter.write(token)
+    fileWriter.close()
+    fileWriter.flush()
 }
 
-fun isTokenAvailable(context: Context): Boolean{
+fun isTokenAvailable(context: Context): Boolean {
     val tokenFile = File(context.filesDir, fileName)
-    if(tokenFile.exists()){
+    if (tokenFile.exists()) {
         val fileReader = Scanner(tokenFile)
-        if(fileReader.hasNextLine()){
+        if (fileReader.hasNextLine()) {
             return true
         }
-         return false
-    } else{
+        return false
+    } else {
         return false
     }
 }

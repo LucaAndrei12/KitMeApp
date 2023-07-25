@@ -1,10 +1,11 @@
 package xyz.lucasteel.kitme
 
+import android.annotation.SuppressLint
+import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -14,19 +15,22 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.currentCompositionLocalContext
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.SpanStyle
@@ -46,23 +50,39 @@ import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.safetynet.SafetyNet
 import com.google.android.gms.tasks.OnFailureListener
 import com.google.android.gms.tasks.OnSuccessListener
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.async
+import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import org.bson.Document
 import xyz.lucasteel.kitme.logic.login
 import xyz.lucasteel.kitme.logic.saveTokenToFile
 import xyz.lucasteel.kitme.ui.theme.justFamily
-import java.util.concurrent.Executor
 
 const val CAPTCHA_SITE_KEY = "6LcBLd4mAAAAALJvh_I1u769wQ0HAze_DCw5vMmj"
 
+@SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun LogInScreen(navController: NavController) {
     val viewModel = LogInScreenViewModel()
-    LoginScreenContent(viewModel, navController)
+    val loginSnackbarHostState = remember { SnackbarHostState() }
+
+    Scaffold(
+        snackbarHost = {
+            SnackbarHost(hostState = loginSnackbarHostState)
+        }
+    ) {
+        LoginScreenContent(viewModel, navController, loginSnackbarHostState)
+    }
 }
 
 @Composable
-fun LoginScreenContent(viewModel: LogInScreenViewModel, navController: NavController) {
+fun LoginScreenContent(
+    viewModel: LogInScreenViewModel,
+    navController: NavController,
+    snackbarHost: SnackbarHostState
+) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
             verticalArrangement = Arrangement.SpaceBetween,
@@ -70,7 +90,6 @@ fun LoginScreenContent(viewModel: LogInScreenViewModel, navController: NavContro
         ) {
             WelcomeLoginTexts()
             Column(
-                modifier = Modifier.align(Alignment.CenterHorizontally),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -83,7 +102,16 @@ fun LoginScreenContent(viewModel: LogInScreenViewModel, navController: NavContro
                 )
                 UsernameTextField(viewModel = viewModel)
                 PasswordTextField(viewModel = viewModel)
-                LogInButton(viewModel = viewModel, navController = navController)
+                if (viewModel.isLoading.value) {
+                    CircularProgressIndicator(modifier = Modifier.padding(top = 10.dp))
+                } else {
+                    LogInButton(
+                        viewModel = viewModel,
+                        navController = navController,
+                        context = LocalContext.current,
+                        snackbarHost = snackbarHost
+                    )
+                }
                 HelpText(navController = navController)
             }
             Image(
@@ -134,22 +162,44 @@ fun PasswordTextField(viewModel: LogInScreenViewModel) {
 }
 
 @Composable
-fun LogInButton(viewModel: LogInScreenViewModel, navController: NavController) {
-    val context = LocalContext.current
+fun LogInButton(
+    viewModel: LogInScreenViewModel,
+    navController: NavController,
+    context: Context,
+    snackbarHost: SnackbarHostState
+) {
     Button(onClick = {
         SafetyNet.getClient(context).verifyWithRecaptcha(CAPTCHA_SITE_KEY)
             .addOnSuccessListener(OnSuccessListener { response ->
                 // Indicates communication with reCAPTCHA service was
                 // successful.
-                val userResponseToken = response.tokenResult
+                val captchaToken = response.tokenResult
                 if (response.tokenResult?.isNotEmpty() == true) {
-                    val loginResponse = login(MainScope(), viewModel.usernameText.value, viewModel.passwordText.value, userResponseToken!!)
-                    if(loginResponse.contains("token")){
-                        val token = Document.parse(loginResponse).get("token") as String
-                        // saveTokenToFile(context, token)
-                        navController.navigate("verifyOTP/$token")
 
-                        //TODO: Add successful message to snackbar
+                    MainScope().launch {
+                        viewModel.isLoading.value = true
+                        val loginResponse = login(
+                            MainScope(),
+                            viewModel.usernameText.value,
+                            viewModel.passwordText.value,
+                            captchaToken!!
+                        )
+                        if (loginResponse.contains("token")) {
+                            val token = Document.parse(loginResponse).get("token") as String
+                            snackbarHost.showSnackbar(
+                                message = "Login successful. Redirecting you...",
+                                duration = SnackbarDuration.Short
+                            )
+                            println("verifyOTP/$token")
+                            navController.navigate("verifyOTPScreen/$token")
+                        } else {
+                            viewModel.isLoading.value = false
+                            snackbarHost.showSnackbar(
+                                message = "Error: $loginResponse",
+                                duration = SnackbarDuration.Long
+                            )
+                            println(loginResponse)
+                        }
                     }
                 }
             })
@@ -158,15 +208,27 @@ fun LogInButton(viewModel: LogInScreenViewModel, navController: NavController) {
                     // An error occurred when communicating with the
                     // reCAPTCHA service. Refer to the status code to
                     // handle the error appropriately.
-                    //TODO: ADD SNACKBAR WITH ERROR
+                    MainScope().async {
+                        snackbarHost.showSnackbar(
+                            message = "Error: ${
+                                CommonStatusCodes.getStatusCodeString(
+                                    e.statusCode
+                                )
+                            }"
+                        )
+                    }
                     println("Error: ${CommonStatusCodes.getStatusCodeString(e.statusCode)}")
                 } else {
                     // A different, unknown type of error occurred.
-                    //TODO: ADD SNACKBAR WITH ERROR
+                    MainScope().async {
+                        snackbarHost.showSnackbar(
+                            message = "Error: ${e.message}"
+                        )
+                    }
                     println("Error: ${e.message}")
                 }
             })
-    }) {
+    }, modifier = Modifier.padding(top = 5.dp)) {
         Text(text = "Log in!", fontFamily = justFamily)
     }
 }
@@ -203,7 +265,7 @@ fun HelpText(navController: NavController) {
                 append("New to KitMe? ")
                 withStyle(
                     style = SpanStyle(
-                        color = Color.Blue,
+                        color = MaterialTheme.colorScheme.tertiary,
                         textDecoration = TextDecoration.Underline
                     )
                 ) {
@@ -222,7 +284,7 @@ fun HelpText(navController: NavController) {
                 append("Forgot your username? ")
                 withStyle(
                     style = SpanStyle(
-                        color = Color.Blue,
+                        color = MaterialTheme.colorScheme.tertiary,
                         textDecoration = TextDecoration.Underline
                     )
                 ) {
@@ -241,7 +303,7 @@ fun HelpText(navController: NavController) {
                 append("Forgot your password? ")
                 withStyle(
                     style = SpanStyle(
-                        color = Color.Blue,
+                        color = MaterialTheme.colorScheme.tertiary,
                         textDecoration = TextDecoration.Underline
                     )
                 ) {
@@ -261,5 +323,8 @@ fun HelpText(navController: NavController) {
 @Preview
 @Composable
 fun LogInScreenPreview() {
-    LoginScreenContent(LogInScreenViewModel(), rememberNavController())
+    LoginScreenContent(
+        LogInScreenViewModel(),
+        rememberNavController(),
+        remember { SnackbarHostState() })
 }
