@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
+import com.google.accompanist.systemuicontroller.rememberSystemUiController
 
 
 private val LightColors = lightColorScheme(
@@ -81,6 +82,7 @@ fun KitMeAppTheme(
     useDarkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable() () -> Unit
 ) {
+    val systemUiController = rememberSystemUiController()
 
     val dynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     val colorScheme = when {
@@ -89,6 +91,10 @@ fun KitMeAppTheme(
         useDarkTheme -> DarkColors
         else -> LightColors
     }
+
+    systemUiController.setStatusBarColor(
+        color = if(useDarkTheme) dynamicDarkColorScheme(LocalContext.current).surface else dynamicLightColorScheme(LocalContext.current).surface
+    )
 
     /*   val colors = if (!useDarkTheme) {
            LightColors

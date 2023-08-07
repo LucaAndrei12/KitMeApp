@@ -28,7 +28,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -50,22 +49,21 @@ import com.google.android.gms.common.api.CommonStatusCodes
 import com.google.android.gms.safetynet.SafetyNet
 import com.google.android.gms.tasks.OnFailureListener
 import com.google.android.gms.tasks.OnSuccessListener
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
-import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import org.bson.Document
 import xyz.lucasteel.kitme.logic.login
-import xyz.lucasteel.kitme.logic.saveTokenToFile
+import xyz.lucasteel.kitme.logic.updateOTP
 import xyz.lucasteel.kitme.ui.theme.justFamily
 
 const val CAPTCHA_SITE_KEY = "6LcBLd4mAAAAALJvh_I1u769wQ0HAze_DCw5vMmj"
+private val viewModel: LogInScreenViewModel = LogInScreenViewModel()
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun LogInScreen(navController: NavController) {
-    val viewModel = LogInScreenViewModel()
+
     val loginSnackbarHostState = remember { SnackbarHostState() }
 
     Scaffold(
@@ -73,13 +71,12 @@ fun LogInScreen(navController: NavController) {
             SnackbarHost(hostState = loginSnackbarHostState)
         }
     ) {
-        LoginScreenContent(viewModel, navController, loginSnackbarHostState)
+        LoginScreenContent(navController, loginSnackbarHostState)
     }
 }
 
 @Composable
 fun LoginScreenContent(
-    viewModel: LogInScreenViewModel,
     navController: NavController,
     snackbarHost: SnackbarHostState
 ) {
@@ -100,13 +97,12 @@ fun LoginScreenContent(
                     style = MaterialTheme.typography.titleLarge,
                     fontFamily = justFamily
                 )
-                UsernameTextField(viewModel = viewModel)
-                PasswordTextField(viewModel = viewModel)
+                UsernameTextField()
+                PasswordTextField()
                 if (viewModel.isLoading.value) {
                     CircularProgressIndicator(modifier = Modifier.padding(top = 10.dp))
                 } else {
                     LogInButton(
-                        viewModel = viewModel,
                         navController = navController,
                         context = LocalContext.current,
                         snackbarHost = snackbarHost
@@ -126,7 +122,7 @@ fun LoginScreenContent(
 }
 
 @Composable
-fun UsernameTextField(viewModel: LogInScreenViewModel) {
+fun UsernameTextField() {
     OutlinedTextField(
         value = viewModel.usernameText.value,
         onValueChange = { viewModel.usernameText.value = it },
@@ -136,7 +132,7 @@ fun UsernameTextField(viewModel: LogInScreenViewModel) {
 }
 
 @Composable
-fun PasswordTextField(viewModel: LogInScreenViewModel) {
+fun PasswordTextField() {
     OutlinedTextField(
         value = viewModel.passwordText.value,
         onValueChange = { viewModel.passwordText.value = it },
@@ -163,7 +159,6 @@ fun PasswordTextField(viewModel: LogInScreenViewModel) {
 
 @Composable
 fun LogInButton(
-    viewModel: LogInScreenViewModel,
     navController: NavController,
     context: Context,
     snackbarHost: SnackbarHostState
@@ -190,13 +185,13 @@ fun LogInButton(
                                 message = "Login successful. Redirecting you...",
                                 duration = SnackbarDuration.Short
                             )
-                            println("verifyOTP/$token")
+                            viewModel.isLoading.value = false
                             navController.navigate("verifyOTPScreen/$token")
                         } else {
                             viewModel.isLoading.value = false
                             snackbarHost.showSnackbar(
                                 message = "Error: $loginResponse",
-                                duration = SnackbarDuration.Long
+                                duration = SnackbarDuration.Short
                             )
                             println(loginResponse)
                         }
@@ -324,7 +319,6 @@ fun HelpText(navController: NavController) {
 @Composable
 fun LogInScreenPreview() {
     LoginScreenContent(
-        LogInScreenViewModel(),
         rememberNavController(),
         remember { SnackbarHostState() })
 }

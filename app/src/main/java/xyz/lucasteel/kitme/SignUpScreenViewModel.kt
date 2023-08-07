@@ -37,6 +37,9 @@ class SignUpScreenViewModel : ViewModel()  {
         if(passwordText.value != confirmPasswordText.value){
             isPasswordError.value = true
             passwordTip.value = "The passwords do not match."
+        } else if(passwordText.value.length < 8){
+            isPasswordError.value = true
+            passwordTip.value = "Passwords must have at least 8 characters."
         } else {
             isPasswordError.value = false
         }

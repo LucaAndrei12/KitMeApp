@@ -3,9 +3,11 @@ package xyz.lucasteel.kitme
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import xyz.lucasteel.kitme.logic.getToken
 import xyz.lucasteel.kitme.ui.theme.KitMeAppTheme
 
 class MainActivity : ComponentActivity() {
@@ -13,8 +15,12 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             KitMeAppTheme {
+                val context = LocalContext.current
                 val navController = rememberNavController()
-                NavHost(navController = navController, startDestination = "signUpScreen") {
+                NavHost(
+                    navController = navController,
+                    startDestination = if (getToken(context = context).equals("")) "loginScreen" else "homeScreen"
+                ) {
 
                     composable(route = "homeScreen") {
                         HomeScreen(navController = navController)
@@ -31,11 +37,11 @@ class MainActivity : ComponentActivity() {
                         LogInScreen(navController = navController)
                     }
 
-                    composable(route = "signUpScreen"){
+                    composable(route = "signUpScreen") {
                         SignUpScreen(navController = navController)
                     }
 
-                    composable(route = "postScreen/{postOID}/{token}"){
+                    composable(route = "postScreen/{postOID}/{token}") {
                         PostScreen(
                             postOID = it.arguments?.getString("postOID")!!,
                             token = it.arguments?.getString("token")!!,
@@ -43,7 +49,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    composable(route = "profileScreen/{userOID}/{token}"){
+                    composable(route = "profileScreen/{userOID}/{token}") {
                         ProfileScreen(
                             userOID = it.arguments?.getString("userOID")!!,
                             token = it.arguments?.getString("token")!!,
@@ -51,42 +57,48 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    composable(route = "savedScreen/{token}"){
+                    composable(route = "savedScreen/{token}") {
                         SavedScreen(
                             token = it.arguments?.getString("token")!!,
                             navController = navController
                         )
                     }
 
-                    composable(route = "searchScreen/{token}"){
+                    composable(route = "searchScreen/{token}") {
                         SearchScreen(
                             token = it.arguments?.getString("token")!!,
                             navController = navController
                         )
                     }
 
-                    composable(route = "userScreen/{token}"){
+                    composable(route = "userScreen/{token}") {
                         UserScreen(
                             token = it.arguments?.getString("token")!!,
                             navController = navController
                         )
                     }
 
-                    composable(route = "verifyOTPScreen/{unsavedToken}"){
+                    composable(route = "verifyOTPScreen/{unsavedToken}") {
                         VerifyOTPScreen(
                             unsavedToken = it.arguments?.getString("unsavedToken")!!,
                             navController = navController
                         )
                     }
 
-                    composable(route = "forgotPasswordScreen}"){
+                    composable(route = "forgotPasswordScreen}") {
                         ForgotPasswordScreen(
                             navController = navController
                         )
                     }
 
-                    composable(route = "forgotUsernameScreen}"){
-                        ForgotPasswordScreen(
+                    composable(route = "forgotUsernameScreen") {
+                        ForgotUsernameScreen(
+                            navController = navController
+                        )
+                    }
+
+                    composable(route = "infoScreen") {
+                        InfoScreen(
                             navController = navController
                         )
                     }

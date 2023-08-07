@@ -60,6 +60,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import org.bson.Document
 import xyz.lucasteel.kitme.logic.signUp
+import xyz.lucasteel.kitme.logic.updateOTP
 import xyz.lucasteel.kitme.ui.theme.justFamily
 
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
@@ -306,6 +307,7 @@ fun SignUpButton(
                                     message = "Sign up successful. Redirecting you...",
                                     duration = SnackbarDuration.Short
                                 )
+                                viewModel.isLoading.value = false
                                 navController.navigate("verifyOTPScreen/$token")
                             } else {
                                 viewModel.isLoading.value = false
