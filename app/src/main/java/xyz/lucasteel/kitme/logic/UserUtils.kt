@@ -65,6 +65,24 @@ suspend fun verifyOTP(scope: CoroutineScope, token: String, otp: Int): Boolean {
     return wasSuccessful
 }
 
+//Returns if the OTP provided is the right one for the user corresponding to the token
+suspend fun verifyOTPUsername(scope: CoroutineScope, username: String?, otp: Int): Boolean {
+    var wasSuccessful: Boolean
+    val verifyOTPResponse: HttpResponse = scope.async(Dispatchers.IO) {
+        userClient.submitForm(
+            url = "$rootUserUrl/verifyOTPUsername",
+            formParameters = parameters {
+                append("username", username!!)
+                append("otp", "$otp")
+            }
+        )
+    }.await()
+
+    val responseDocument = Document.parse(verifyOTPResponse.body<String>())
+    wasSuccessful = responseDocument.get("wasSuccessful") as Boolean
+    return wasSuccessful
+}
+
 //Returns either "true" if the operation was successful or and error message
 suspend fun updateOTP(scope: CoroutineScope, token: String): String {
     var wasSuccessful: String
@@ -74,6 +92,24 @@ suspend fun updateOTP(scope: CoroutineScope, token: String): String {
             url = "$rootUserUrl/updateOTP",
             formParameters = parameters {
                 append("token", token)
+            }
+        )
+    }.await()
+    val responseDocument = Document.parse(updateOTPResponse.body<String>())
+    wasSuccessful = responseDocument.get("wasSuccessful") as String
+
+    return wasSuccessful
+}
+
+//Returns either "true" if the operation was successful or and error message
+suspend fun updateOTPUsername(scope: CoroutineScope, username: String?): String {
+    var wasSuccessful: String
+
+    val updateOTPResponse: HttpResponse = scope.async(Dispatchers.IO) {
+        userClient.submitForm(
+            url = "$rootUserUrl/updateOTPUsername",
+            formParameters = parameters {
+                append("username", username!!)
             }
         )
     }.await()

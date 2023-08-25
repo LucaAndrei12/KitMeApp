@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -17,19 +18,24 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bookmark
+import androidx.compose.material.icons.filled.Comment
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ThumbDown
 import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material.icons.outlined.BookmarkBorder
+import androidx.compose.material.icons.outlined.Comment
 import androidx.compose.material.icons.outlined.ThumbDown
 import androidx.compose.material.icons.outlined.ThumbUp
 import androidx.compose.material3.Card
@@ -51,6 +57,10 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.rememberTopAppBarState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -58,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.modifier.modifierLocalConsumer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -66,15 +77,21 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import org.bson.Document
+import org.bson.types.ObjectId
 import xyz.lucasteel.kitme.logic.getToken
 import xyz.lucasteel.kitme.logic.likePostAction
 import xyz.lucasteel.kitme.logic.removePost
 import xyz.lucasteel.kitme.logic.savePostAction
 import xyz.lucasteel.kitme.ui.theme.justFamily
+
+fun LazyListState.isScrolledToEnd() =
+    layoutInfo.visibleItemsInfo.lastOrNull()?.index == layoutInfo.totalItemsCount - 1
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -82,26 +99,47 @@ fun HomeScreen(navController: NavController) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
     val homeScreenViewModel = HomeScreenViewModel()
     val homeSnackbarHostState = remember { SnackbarHostState() }
+    val lazyColState = rememberLazyListState()
+    val isRefreshLoading by homeScreenViewModel.isRefreshLoading.collectAsState()
+    val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isRefreshLoading)
+
     homeScreenViewModel.setToken(getToken(LocalContext.current))
     homeScreenViewModel.getFeed(homeSnackbarHostState, navController)
 
-    Scaffold(
-        modifier = Modifier
-            .fillMaxSize()
-            .nestedScroll(scrollBehavior.nestedScrollConnection),
-        bottomBar = { BottomNavigation(navController = navController) },
-        topBar = { HomeScreenAppBar(scrollBehavior, navController) },
-        floatingActionButton = { HomeScreenActionButton(navController, homeScreenViewModel) }) {
-        Surface(
+    val endOfListReached by remember {
+        derivedStateOf {
+            lazyColState.isScrolledToEnd()
+        }
+    }
+
+    LaunchedEffect(endOfListReached) {
+        homeScreenViewModel.updateWithPosts(homeSnackbarHostState, navController)
+    }
+
+    SwipeRefresh(
+        state = swipeRefreshState,
+        onRefresh = { homeScreenViewModel.refreshPosts(navController, homeSnackbarHostState) })
+    {
+        Scaffold(
             modifier = Modifier
-                .padding(it)
                 .fillMaxSize()
-        ) {
-            HomeScreenContent(
-                navController = navController,
-                viewModel = homeScreenViewModel,
-                snackbarHostState = homeSnackbarHostState
-            )
+                .nestedScroll(scrollBehavior.nestedScrollConnection),
+            bottomBar = { BottomNavigation(navController = navController) },
+            topBar = { HomeScreenAppBar(scrollBehavior, navController) },
+            floatingActionButton = { HomeScreenActionButton(navController, homeScreenViewModel) }) {
+            Surface(
+                modifier = Modifier
+                    .padding(it)
+                    .fillMaxSize()
+            ) {
+                HomeScreenContent(
+                    navController = navController,
+                    viewModel = homeScreenViewModel,
+                    snackbarHostState = homeSnackbarHostState,
+                    lazyColState = lazyColState,
+                    isAtEndOfList = endOfListReached
+                )
+            }
         }
     }
 }
@@ -110,29 +148,49 @@ fun HomeScreen(navController: NavController) {
 fun HomeScreenContent(
     navController: NavController,
     viewModel: HomeScreenViewModel,
-    snackbarHostState: SnackbarHostState
+    snackbarHostState: SnackbarHostState,
+    lazyColState: LazyListState,
+    isAtEndOfList: Boolean
 ) {
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth(),
+        state = lazyColState,
         content = {
             items(items = viewModel.postsList.value,
-                key = {println(it); Document.parse((Document.parse("$it}")["_id"] as String))["\$oid"] as String}
-            ) {
-                val postDocument = Document.parse(it)
+                key = { (Document.parse(it)["_id"]!! as ObjectId).toString() + Document.parse(it)["postingDate"]!! as String + Document.parse(it)["likes"]!! as Int }) { postString ->
+                val postDocument = Document.parse(postString)
                 PostComposable(
-                    owner = postDocument["owner"] as String,
-                    ownerOID = postDocument["ownerOID"] as String,
-                    title = postDocument["title"] as String,
-                    datePosted = postDocument["postingDate"] as String,
-                    resource = postDocument["resource"] as String,
-                    numberLikes = postDocument["likes"] as Long,
-                    postOID = postDocument["_id"] as String,
+                    owner = postDocument["owner"]!! as String,
+                    ownerOID = postDocument["ownerID"]!! as String,
+                    title = postDocument["title"]!! as String,
+                    datePosted = postDocument["postingDate"]!! as String,
+                    resource = postDocument["resource"]!! as String,
+                    numberLikes = postDocument["likes"]!! as Int,
+                    postOID = (postDocument["_id"]!! as ObjectId).toString(),
                     navController = navController,
                     viewModel = viewModel,
                     snackbarHostState = snackbarHostState,
-                    isOwnedByUser = false
+                    isOwnedByUser = false,
+                    isOnHomePage = true
                 )
             }
-        })
+            if (isAtEndOfList) {
+                item {
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .padding(5.dp)
+                                .align(Alignment.Center)
+                        )
+                    }
+                }
+            }
+        }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -198,18 +256,19 @@ fun PostComposable(
     title: String,
     datePosted: String,
     resource: String,
-    numberLikes: Long,
+    numberLikes: Int,
     postOID: String,
     navController: NavController,
     viewModel: HomeScreenViewModel,
     snackbarHostState: SnackbarHostState,
-    isOwnedByUser: Boolean
+    isOwnedByUser: Boolean,
+    isOnHomePage: Boolean
 ) {
     val circleColor = MaterialTheme.colorScheme.secondary
     val isLiked = remember { mutableStateOf(0) }
     val isSaved = remember { mutableStateOf(false) }
     val isMenuExpanded = remember { mutableStateOf(false) }
-    var likes = remember { mutableStateOf(numberLikes) }
+    val likes = remember { mutableStateOf(numberLikes) }
 
     Card(
         modifier = Modifier
@@ -257,14 +316,17 @@ fun PostComposable(
                     )
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     if (isOwnedByUser) {
                         if (isMenuExpanded.value) {
                             DropdownMenu(
                                 expanded = isMenuExpanded.value,
                                 onDismissRequest = { isMenuExpanded.value = false }) {
                                 DropdownMenuItem(
-                                    text = { Text("Delete") },
+                                    text = { Text("Delete post") },
                                     onClick = {
                                         MainScope().launch(Dispatchers.IO) {
                                             val removePostResponse = removePost(
@@ -311,8 +373,9 @@ fun PostComposable(
                     .build(),
                 loading = { CircularProgressIndicator() },
                 contentDescription = title,
-                contentScale = ContentScale.Fit,
+                contentScale = ContentScale.FillWidth,
                 modifier = Modifier
+                    .fillMaxWidth()
                     .padding(start = 10.dp, end = 10.dp)
                     .clip(RoundedCornerShape(20.dp))
                     .align(Alignment.CenterHorizontally)
@@ -324,9 +387,24 @@ fun PostComposable(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
+                        var likesToAdd: Byte
+                        if (isLiked.value == 1) {
+                            likes.value += -1
+                            isLiked.value = 0
+                            likesToAdd = -1
+                        } else if (isLiked.value == 0) {
+                            likes.value += 1
+                            isLiked.value = 1
+                            likesToAdd = 1
+                        } else {
+                            likes.value += 2
+                            isLiked.value = 1
+                            likesToAdd = 2
+                        }
+
                         MainScope().launch {
                             val response = likePostAction(
-                                value = if (isLiked.value == 1) false else true,
+                                value = likesToAdd,
                                 postOID = postOID,
                                 token = viewModel.getToken(),
                                 scope = MainScope()
@@ -335,11 +413,9 @@ fun PostComposable(
                                 snackbarHostState.showSnackbar("Error: $response")
                             }
                         }
-                        likes.value += if (isLiked.value == 1) -1 else 1
-                        isLiked.value = if (isLiked.value == 1) 0 else 1
                     }) {
-                        AnimatedContent(targetState = isLiked) {
-                            if (it.value == 1) {
+                        AnimatedContent(targetState = isLiked.value) {
+                            if (it == 1) {
                                 Icon(
                                     imageVector = Icons.Filled.ThumbUp,
                                     contentDescription = "like button",
@@ -355,18 +431,33 @@ fun PostComposable(
                         }
                     }
 
-                    AnimatedContent(targetState = likes) {
+                    AnimatedContent(targetState = likes.value) {
                         Text(
-                            text = "${likes.value}",
+                            text = "$it",
                             fontFamily = justFamily,
                             style = MaterialTheme.typography.labelLarge
                         )
                     }
 
                     IconButton(onClick = {
+                        var likesToAdd: Byte
+                        if (isLiked.value == 1) {
+                            likes.value += -2
+                            isLiked.value = -1
+                            likesToAdd = -2
+                        } else if (isLiked.value == 0) {
+                            likes.value += -1
+                            isLiked.value = -1
+                            likesToAdd = -1
+                        } else {
+                            likes.value += 1
+                            isLiked.value = 0
+                            likesToAdd = 1
+                        }
+
                         MainScope().launch {
                             val response = likePostAction(
-                                value = if (isLiked.value == -1) true else false,
+                                value = likesToAdd,
                                 postOID = postOID,
                                 token = viewModel.getToken(),
                                 scope = MainScope()
@@ -375,23 +466,26 @@ fun PostComposable(
                                 snackbarHostState.showSnackbar("Error: $response")
                             }
                         }
-                        likes.value += if (isLiked.value == -1) 1 else -1
-                        isLiked.value = if (isLiked.value == -1) 0 else -1
                     }) {
-                        AnimatedContent(targetState = isLiked) {
-                            if (it.value == -1) {
+                        AnimatedContent(targetState = isLiked.value) {
+                            if (it == -1) {
                                 Icon(
                                     imageVector = Icons.Filled.ThumbDown,
-                                    contentDescription = "like button",
+                                    contentDescription = "dislike button",
                                     tint = MaterialTheme.colorScheme.tertiary
                                 )
                             } else {
                                 Icon(
                                     imageVector = Icons.Outlined.ThumbDown,
-                                    contentDescription = "like button",
+                                    contentDescription = "dislike button",
                                     tint = MaterialTheme.colorScheme.tertiary
                                 )
                             }
+                        }
+                    }
+                    if(isOnHomePage){
+                        IconButton(onClick = { navController.navigate("postScreen/$postOID/${viewModel.getToken()}") }, modifier = Modifier.padding(start = 5.dp)) {
+                            Icon(imageVector = Icons.Outlined.Comment, contentDescription = "comments")
                         }
                     }
                 }
@@ -429,22 +523,23 @@ fun PostComposable(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
 @Preview
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Composable
 fun HomeScreenPreview() {
     PostComposable(
-        owner = "Gigel",
-        ownerOID = "aaaa",
-        title = "Meet my new boy, adrian",
+        owner = "Lorem ipsum",
+        ownerOID = "1234",
+        title = "Sil dolor amet",
         datePosted = "15 feb 2023",
-        resource = "https://images.unsplash.com/photo-1595433707802-6b2626ef1c91?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxleHBsb3JlLWZlZWR8Mnx8fGVufDB8fHx8fA%3D%3D&w=1000&q=80",
+        resource = "1234",
         numberLikes = 10,
-        postOID = "aaa",
+        postOID = "1234",
         navController = rememberNavController(),
         viewModel = HomeScreenViewModel(),
         snackbarHostState = remember { SnackbarHostState() },
-        isOwnedByUser = false
+        isOwnedByUser = false,
+        isOnHomePage = true
     )
 }

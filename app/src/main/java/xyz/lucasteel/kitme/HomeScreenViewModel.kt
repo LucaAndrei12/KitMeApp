@@ -2,10 +2,15 @@ package xyz.lucasteel.kitme
 
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class HomeScreenViewModel : ViewModel(){
@@ -14,6 +19,16 @@ class HomeScreenViewModel : ViewModel(){
         val isUpdateLoading = mutableStateOf(false)
         private var token = ""
         var postsList = mutableStateOf(ArrayList<String>())
+        private val _isRefreshLoading = MutableStateFlow(false)
+        val isRefreshLoading = _isRefreshLoading.asStateFlow()
+
+        fun refreshPosts(navController: NavController, snackbarHostState: SnackbarHostState){
+                viewModelScope.launch {
+                        _isRefreshLoading.value = true
+                        getFeed(snackbarHostState, navController)
+                        _isRefreshLoading.value = false
+                }
+        }
 
         fun setToken(value: String){
                 token = value
@@ -51,6 +66,8 @@ class HomeScreenViewModel : ViewModel(){
                         val getFeedResponse = MainScope().async {
                                 xyz.lucasteel.kitme.logic.getFeed(token = getToken(), MainScope())
                         }.await()
+
+                        delay(500)
 
                         if(getFeedResponse.size == 1 && getFeedResponse[0].contains("Session expired")){
                                 snackbarHostState.showSnackbar("An error occurred: Session Expired. Sending you to login page...")
