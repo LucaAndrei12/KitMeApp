@@ -14,6 +14,9 @@ class ForgotPasswordScreenViewModel : ViewModel() {
     val username = mutableStateOf("")
     val newPassword = mutableStateOf("")
     val confirmNewPassword = mutableStateOf("")
+    val isOtpSendLoading = mutableStateOf(false)
+    val isNewPasswordVisible = mutableStateOf(false)
+    val isConfirmPasswordVisible = mutableStateOf(false)
 
     fun startSecondsCountDown(){
         MainScope().launch {

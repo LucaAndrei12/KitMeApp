@@ -205,6 +205,7 @@ suspend fun forgotPassword(
 }
 
 //Returns either "true" if the operation was successful or and error message
+//TODO Make with multipart
 fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String {
     var wasSuccessful = "An error occurred."
     scope.launch(Dispatchers.IO) {

@@ -73,6 +73,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
 import coil.compose.SubcomposeAsyncImage
@@ -82,6 +83,7 @@ import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
+import org.apache.commons.math3.random.RandomDataGenerator
 import org.bson.Document
 import org.bson.types.ObjectId
 import xyz.lucasteel.kitme.logic.getToken
@@ -89,6 +91,11 @@ import xyz.lucasteel.kitme.logic.likePostAction
 import xyz.lucasteel.kitme.logic.removePost
 import xyz.lucasteel.kitme.logic.savePostAction
 import xyz.lucasteel.kitme.ui.theme.justFamily
+import java.util.Date
+import java.util.concurrent.ThreadLocalRandom
+import kotlin.random.Random
+
+//TODO: Come up with idea to randomize lazy column key
 
 fun LazyListState.isScrolledToEnd() =
     layoutInfo.visibleItemsInfo.lastOrNull()?.index == layoutInfo.totalItemsCount - 1
@@ -97,7 +104,7 @@ fun LazyListState.isScrolledToEnd() =
 @Composable
 fun HomeScreen(navController: NavController) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior(rememberTopAppBarState())
-    val homeScreenViewModel = HomeScreenViewModel()
+    val homeScreenViewModel: HomeScreenViewModel = viewModel()
     val homeSnackbarHostState = remember { SnackbarHostState() }
     val lazyColState = rememberLazyListState()
     val isRefreshLoading by homeScreenViewModel.isRefreshLoading.collectAsState()
@@ -152,16 +159,17 @@ fun HomeScreenContent(
     lazyColState: LazyListState,
     isAtEndOfList: Boolean
 ) {
+
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier.fillMaxWidth(),
         state = lazyColState,
         content = {
             items(items = viewModel.postsList.value,
-                key = { (Document.parse(it)["_id"]!! as ObjectId).toString() + Document.parse(it)["postingDate"]!! as String + Document.parse(it)["likes"]!! as Int }) { postString ->
+                key = { (Document.parse(it)["_id"] as ObjectId).toString()}) { postString ->
                 val postDocument = Document.parse(postString)
                 PostComposable(
                     owner = postDocument["owner"]!! as String,
-                    ownerOID = postDocument["ownerID"]!! as String,
+                    ownerOID = (postDocument["ownerOID"]!! as ObjectId).toString(),
                     title = postDocument["title"]!! as String,
                     datePosted = postDocument["postingDate"]!! as String,
                     resource = postDocument["resource"]!! as String,
@@ -171,7 +179,8 @@ fun HomeScreenContent(
                     viewModel = viewModel,
                     snackbarHostState = snackbarHostState,
                     isOwnedByUser = false,
-                    isOnHomePage = true
+                    isOnHomePage = true,
+                    isSavedDefault = false
                 )
             }
             if (isAtEndOfList) {
@@ -262,19 +271,20 @@ fun PostComposable(
     viewModel: HomeScreenViewModel,
     snackbarHostState: SnackbarHostState,
     isOwnedByUser: Boolean,
-    isOnHomePage: Boolean
+    isOnHomePage: Boolean,
+    isSavedDefault: Boolean
 ) {
     val circleColor = MaterialTheme.colorScheme.secondary
     val isLiked = remember { mutableStateOf(0) }
-    val isSaved = remember { mutableStateOf(false) }
+    val isSaved = remember { mutableStateOf(isSavedDefault) }
     val isMenuExpanded = remember { mutableStateOf(false) }
     val likes = remember { mutableStateOf(numberLikes) }
 
     Card(
         modifier = Modifier
+            .clickable { navController.navigate("postScreen/$postOID/${viewModel.getToken()}") }
             .fillMaxWidth()
             .wrapContentHeight()
-            .clickable { navController.navigate("postScreen/$postOID/${viewModel.getToken()}") }
             .padding(start = 5.dp, end = 5.dp),
         elevation = CardDefaults.cardElevation()
     ) {
@@ -387,7 +397,7 @@ fun PostComposable(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = {
-                        var likesToAdd: Byte
+                        val likesToAdd: Byte
                         if (isLiked.value == 1) {
                             likes.value += -1
                             isLiked.value = 0
@@ -414,7 +424,7 @@ fun PostComposable(
                             }
                         }
                     }) {
-                        AnimatedContent(targetState = isLiked.value) {
+                        AnimatedContent(targetState = isLiked.value, label = "") {
                             if (it == 1) {
                                 Icon(
                                     imageVector = Icons.Filled.ThumbUp,
@@ -431,7 +441,7 @@ fun PostComposable(
                         }
                     }
 
-                    AnimatedContent(targetState = likes.value) {
+                    AnimatedContent(targetState = likes.value, label = "") {
                         Text(
                             text = "$it",
                             fontFamily = justFamily,
@@ -440,7 +450,7 @@ fun PostComposable(
                     }
 
                     IconButton(onClick = {
-                        var likesToAdd: Byte
+                        val likesToAdd: Byte
                         if (isLiked.value == 1) {
                             likes.value += -2
                             isLiked.value = -1
@@ -467,7 +477,7 @@ fun PostComposable(
                             }
                         }
                     }) {
-                        AnimatedContent(targetState = isLiked.value) {
+                        AnimatedContent(targetState = isLiked.value, label = "") {
                             if (it == -1) {
                                 Icon(
                                     imageVector = Icons.Filled.ThumbDown,
@@ -504,7 +514,7 @@ fun PostComposable(
                     }
                     isSaved.value = !isSaved.value
                 }, modifier = Modifier.padding(3.dp)) {
-                    AnimatedContent(targetState = isSaved) {
+                    AnimatedContent(targetState = isSaved, label = "") {
                         if (it.value) {
                             Icon(
                                 imageVector = Icons.Filled.Bookmark,
@@ -540,6 +550,7 @@ fun HomeScreenPreview() {
         viewModel = HomeScreenViewModel(),
         snackbarHostState = remember { SnackbarHostState() },
         isOwnedByUser = false,
-        isOnHomePage = true
+        isOnHomePage = true,
+        isSavedDefault = false
     )
 }

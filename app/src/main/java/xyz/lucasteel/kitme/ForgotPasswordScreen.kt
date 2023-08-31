@@ -4,12 +4,19 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -24,6 +31,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -32,9 +41,7 @@ import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import xyz.lucasteel.kitme.logic.forgotPassword
-import xyz.lucasteel.kitme.logic.updateOTP
 import xyz.lucasteel.kitme.logic.updateOTPUsername
-import xyz.lucasteel.kitme.logic.verifyOTP
 import xyz.lucasteel.kitme.logic.verifyOTPUsername
 import xyz.lucasteel.kitme.ui.theme.justFamily
 
@@ -65,15 +72,19 @@ fun ForgotPasswordScreenContent(
         ) {
             BackButton(navController = navController)
             ForgotPasswordTitle()
-            Column(verticalArrangement = Arrangement.Center) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 UsernameTextFieldResetPassword(viewModel = viewModel)
                 OTPCodeField(viewModel = viewModel, snackbarHostState = snackbarHostState)
                 NewPasswordField(viewModel = viewModel)
                 ConfirmNewPasswordField(viewModel = viewModel)
             }
-            ResetPasswordButton(viewModel = viewModel, snackbarHostState = snackbarHostState, navController = navController)
+            ResetPasswordButton(
+                viewModel = viewModel,
+                snackbarHostState = snackbarHostState,
+                navController = navController
+            )
             Image(
-                painter = painterResource(R.drawable.signup_kitme_cropped),
+                painter = painterResource(R.drawable.kitme_verify_email),
                 contentDescription = "kitten photos",
                 modifier = Modifier
                     .height(100.dp)
@@ -103,50 +114,56 @@ fun ForgotPasswordTitle() {
 
 @Composable
 fun OTPCodeField(viewModel: ForgotPasswordScreenViewModel, snackbarHostState: SnackbarHostState) {
-    Column(verticalArrangement = Arrangement.Center, modifier = Modifier.padding(top = 5.dp)) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 5.dp)) {
         OutlinedTextField(
-            modifier = Modifier.padding(start = 20.dp),
+            modifier = Modifier.padding(start = 65.dp),
             value = viewModel.otpValue.value,
             onValueChange = { if (it.length <= 4) viewModel.otpValue.value = it },
             label = { Text(text = "One-time password", fontFamily = justFamily) },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
-
-        if (viewModel.isResendAvailable.value) {
-            Text(
-                modifier = Modifier
-                    .padding(start = 5.dp)
-                    .alpha(0.5f),
-                text = "Send OTP!(${viewModel.millisecondsLeftUntilAvailable.value / 1000}s)",
-                textDecoration = TextDecoration.Underline,
-                color = MaterialTheme.colorScheme.tertiary
-            )
+        if (viewModel.isOtpSendLoading.value) {
+            CircularProgressIndicator(modifier = Modifier.padding(start = 5.dp))
         } else {
-            Text(
-                modifier = Modifier
-                    .padding(start = 5.dp)
-                    .clickable {
-                        if (viewModel.username.value != "") {
-                            MainScope().launch(Dispatchers.IO) {
-                                val sendOTPResponse = updateOTPUsername(
-                                    scope = MainScope(),
-                                    username = viewModel.username.value
-                                )
-                                if (sendOTPResponse == "true") {
-                                    snackbarHostState.showSnackbar("If an account corresponds to the given username, we've sent it an email.")
-                                    viewModel.startSecondsCountDown()
-                                } else {
-                                    snackbarHostState.showSnackbar("An error occurred. Please try again.")
+            if (!viewModel.isResendAvailable.value) {
+                Text(
+                    modifier = Modifier
+                        .padding(start = 5.dp)
+                        .alpha(0.5f),
+                    text = "Send OTP!(${viewModel.millisecondsLeftUntilAvailable.value / 1000}s)",
+                    textDecoration = TextDecoration.Underline,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            } else {
+                Text(
+                    modifier = Modifier
+                        .padding(start = 5.dp)
+                        .clickable {
+                            if (viewModel.username.value != "") {
+                                MainScope().launch(Dispatchers.IO) {
+                                    viewModel.isOtpSendLoading.value = true
+                                    val sendOTPResponse = updateOTPUsername(
+                                        scope = MainScope(),
+                                        username = viewModel.username.value
+                                    )
+                                    if (sendOTPResponse == "true") {
+                                        viewModel.startSecondsCountDown()
+                                        viewModel.isOtpSendLoading.value = false
+                                        snackbarHostState.showSnackbar("If an account corresponds to the given username, we've sent it an email.")
+                                    } else {
+                                        viewModel.isOtpSendLoading.value = false
+                                        snackbarHostState.showSnackbar("An error occurred. Please try again.")
+                                    }
                                 }
+                            } else {
+                                MainScope().async { snackbarHostState.showSnackbar("Please provide a valid username.") }
                             }
-                        } else {
-                            MainScope().async { snackbarHostState.showSnackbar("Please provide a valid username.") }
-                        }
-                    },
-                text = "Send OTP!",
-                textDecoration = TextDecoration.Underline,
-                color = MaterialTheme.colorScheme.tertiary
-            )
+                        },
+                    text = "Send OTP!",
+                    textDecoration = TextDecoration.Underline,
+                    color = MaterialTheme.colorScheme.tertiary
+                )
+            }
         }
     }
 }
@@ -156,8 +173,26 @@ fun NewPasswordField(viewModel: ForgotPasswordScreenViewModel) {
     OutlinedTextField(
         value = viewModel.newPassword.value,
         onValueChange = { viewModel.newPassword.value = it },
-        label = { Text(text = "New password", fontFamily = justFamily) }
-        , modifier = Modifier.padding(top = 5.dp))
+        label = { Text(text = "New password", fontFamily = justFamily) },
+        modifier = Modifier.padding(top = 5.dp),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        visualTransformation = if (viewModel.isNewPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            val image = if (viewModel.isNewPasswordVisible.value)
+                Icons.Filled.Visibility
+            else Icons.Filled.VisibilityOff
+
+            // Please provide localized description for accessibility services
+            val description =
+                if (viewModel.isNewPasswordVisible.value) "Hide password" else "Show password"
+
+            IconButton(onClick = {
+                viewModel.isNewPasswordVisible.value = !viewModel.isNewPasswordVisible.value
+            }) {
+                Icon(imageVector = image, description)
+            }
+        }
+    )
 }
 
 @Composable
@@ -165,8 +200,26 @@ fun ConfirmNewPasswordField(viewModel: ForgotPasswordScreenViewModel) {
     OutlinedTextField(
         value = viewModel.confirmNewPassword.value,
         onValueChange = { viewModel.confirmNewPassword.value = it },
-        label = { Text(text = "Confirm new password", fontFamily = justFamily) }
-        , modifier = Modifier.padding(top = 5.dp))
+        label = { Text(text = "Confirm new password", fontFamily = justFamily) },
+        modifier = Modifier.padding(top = 5.dp),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        visualTransformation = if (viewModel.isConfirmPasswordVisible.value) VisualTransformation.None else PasswordVisualTransformation(),
+        trailingIcon = {
+            val image = if (viewModel.isConfirmPasswordVisible.value)
+                Icons.Filled.Visibility
+            else Icons.Filled.VisibilityOff
+
+            // Please provide localized description for accessibility services
+            val description =
+                if (viewModel.isConfirmPasswordVisible.value) "Hide password" else "Show password"
+
+            IconButton(onClick = {
+                viewModel.isConfirmPasswordVisible.value = !viewModel.isConfirmPasswordVisible.value
+            }) {
+                Icon(imageVector = image, description)
+            }
+        }
+    )
 }
 
 @Composable
@@ -176,7 +229,7 @@ fun ResetPasswordButton(
     navController: NavController
 ) {
     Button(onClick = {
-        MainScope().async(Dispatchers.IO) {
+        MainScope().launch {
             if (viewModel.arePasswordsMatching()) {
                 if (viewModel.otpValue.value.length == 4) {
                     val isOTPValid = verifyOTPUsername(
@@ -192,7 +245,7 @@ fun ResetPasswordButton(
                             otp = Integer.parseInt(viewModel.otpValue.value)
                         )
                         if (isForgotPasswordSuccessful) {
-                            snackbarHostState.showSnackbar("Password resetting successful. Redirecting you...")
+                            snackbarHostState.showSnackbar("Password reset successful.")
                             navController.navigate("loginScreen")
                         } else {
                             snackbarHostState.showSnackbar("An error occurred. Please try again.")

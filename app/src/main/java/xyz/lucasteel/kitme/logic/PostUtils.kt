@@ -1,13 +1,20 @@
 package xyz.lucasteel.kitme.logic
 
 import io.ktor.client.call.body
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitForm
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.parameters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.async
 import org.bson.Document
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.io.InputStream
 import java.util.Arrays
 
 
@@ -18,26 +25,39 @@ val rootPostUrl = "https://kitme.xyz:8443/kitme/api/posts"
 //Adds a post and returns "true" or an error message
 suspend fun addPost(
     token: String,
-    base64image: String,
+    image: ByteArray,
     title: String,
     scope: CoroutineScope
-): String {
+): String? {
     var wasSuccessful = "An error occurred."
 
     val addPostResponse: HttpResponse = scope.async {
+        postClient.submitFormWithBinaryData(
+            url = "$rootPostUrl/addPost",
+            formData = formData {
+                append("token", token)
+                append("title", title)
+                append("image", image, Headers.build {
+                    append(HttpHeaders.ContentType, "image/png")
+                    append(HttpHeaders.ContentDisposition, "filename=\"ktor_logo.png\"")
+                })
+            }
+        )
+    }.await()
+
+    /*val addPostResponse: HttpResponse = scope.async {
         postClient.submitForm(
             url = "$rootPostUrl/addPost",
             formParameters = parameters {
                 append("token", token)
-                append("base64image", base64image)
+                append("image", base64image)
                 append("title", title)
             }
         )
-    }.await()
-    val responseDocument = Document.parse(addPostResponse.body<String>())
-    wasSuccessful = responseDocument.get("wasSuccessful") as String
+    }.await() */
 
-    return wasSuccessful
+    val responseDocument = Document.parse(addPostResponse.body<String>())
+    return responseDocument.get("wasSuccessful") as String?
 }
 
 //Adds a post and returns "true" or an error message
@@ -101,18 +121,22 @@ suspend fun getFeed(token: String, scope: CoroutineScope): ArrayList<String> {
         val responseDocument = Document.parse(getFeedResponse.body<String>())
         arr.add(responseDocument.get("wasSuccessful") as String)
     } else {
-        val toAddToArray = getFeedResponse.body<String>().split("},{").toMutableList()
-        for (item in toAddToArray) {
-            if (item == toAddToArray[0]) {
-                toAddToArray[0] = "$item}"
-            } else if (item == toAddToArray[toAddToArray.size - 1]) {
-                toAddToArray[toAddToArray.size - 1] = "{$item"
-            } else {
-                val indexOfItem = toAddToArray.indexOf(item)
-                toAddToArray[indexOfItem] = "{$item}"
+        if (getFeedResponse.body<String>().contains("},{")) {
+            val toAddToArray = getFeedResponse.body<String>().split("},{").toMutableList()
+            for (item in toAddToArray) {
+                if (item == toAddToArray[0]) {
+                    toAddToArray[0] = "$item}"
+                } else if (item == toAddToArray[toAddToArray.size - 1]) {
+                    toAddToArray[toAddToArray.size - 1] = "{$item"
+                } else {
+                    val indexOfItem = toAddToArray.indexOf(item)
+                    toAddToArray[indexOfItem] = "{$item}"
+                }
             }
+            arr.addAll(toAddToArray)
+        } else {
+           arr.add(getFeedResponse.body())
         }
-        arr.addAll(toAddToArray)
     }
     return arr
 }
@@ -133,3 +157,5 @@ suspend fun getPostInfo(postOID: String, scope: CoroutineScope): String {
 
     return postOrError
 }
+
+

@@ -85,7 +85,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    composable(route = "forgotPasswordScreen}") {
+                    composable(route = "forgotPasswordScreen") {
                         ForgotPasswordScreen(
                             navController = navController
                         )
