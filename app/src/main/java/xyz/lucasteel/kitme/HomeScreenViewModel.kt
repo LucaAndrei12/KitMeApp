@@ -13,7 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-class HomeScreenViewModel : ViewModel(){
+class HomeScreenViewModel : ViewModel(), PostComposableInterface{
 
         val isLoading = mutableStateOf(false)
         val isUpdateLoading = mutableStateOf(false)
@@ -34,7 +34,7 @@ class HomeScreenViewModel : ViewModel(){
                 token = value
         }
 
-        fun getToken(): String{
+        override fun getToken(): String{
                 return token
         }
 

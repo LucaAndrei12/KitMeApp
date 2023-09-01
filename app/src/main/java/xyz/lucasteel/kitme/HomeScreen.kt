@@ -49,6 +49,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -133,7 +134,9 @@ fun HomeScreen(navController: NavController) {
                 .nestedScroll(scrollBehavior.nestedScrollConnection),
             bottomBar = { BottomNavigation(navController = navController) },
             topBar = { HomeScreenAppBar(scrollBehavior, navController) },
-            floatingActionButton = { HomeScreenActionButton(navController, homeScreenViewModel) }) {
+            floatingActionButton = { HomeScreenActionButton(navController, homeScreenViewModel) },
+            snackbarHost = { SnackbarHost(hostState = homeSnackbarHostState) }
+        ) {
             Surface(
                 modifier = Modifier
                     .padding(it)
@@ -165,7 +168,7 @@ fun HomeScreenContent(
         state = lazyColState,
         content = {
             items(items = viewModel.postsList.value,
-                key = { (Document.parse(it)["_id"] as ObjectId).toString()}) { postString ->
+                key = { (Document.parse(it)["_id"] as ObjectId).toString() }) { postString ->
                 val postDocument = Document.parse(postString)
                 PostComposable(
                     owner = postDocument["owner"]!! as String,
@@ -268,7 +271,7 @@ fun PostComposable(
     numberLikes: Int,
     postOID: String,
     navController: NavController,
-    viewModel: HomeScreenViewModel,
+    viewModel: PostComposableInterface,
     snackbarHostState: SnackbarHostState,
     isOwnedByUser: Boolean,
     isOnHomePage: Boolean,
@@ -493,9 +496,15 @@ fun PostComposable(
                             }
                         }
                     }
-                    if(isOnHomePage){
-                        IconButton(onClick = { navController.navigate("postScreen/$postOID/${viewModel.getToken()}") }, modifier = Modifier.padding(start = 5.dp)) {
-                            Icon(imageVector = Icons.Outlined.Comment, contentDescription = "comments")
+                    if (isOnHomePage) {
+                        IconButton(
+                            onClick = { navController.navigate("postScreen/$postOID/${viewModel.getToken()}") },
+                            modifier = Modifier.padding(start = 5.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Comment,
+                                contentDescription = "comments"
+                            )
                         }
                     }
                 }
@@ -511,8 +520,9 @@ fun PostComposable(
                         if (response != "true") {
                             snackbarHostState.showSnackbar("Error: $response")
                         }
+                        isSaved.value = !isSaved.value
                     }
-                    isSaved.value = !isSaved.value
+
                 }, modifier = Modifier.padding(3.dp)) {
                     AnimatedContent(targetState = isSaved, label = "") {
                         if (it.value) {

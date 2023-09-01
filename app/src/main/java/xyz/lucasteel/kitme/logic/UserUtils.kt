@@ -236,9 +236,42 @@ suspend fun savePostAction(scope: CoroutineScope, token: String, postOID: String
             )
         }.await()
         val responseDocument = Document.parse(saveActionResponse.body<String>())
+    println(saveActionResponse.body<String>())
         wasSuccessful = responseDocument.get("wasSuccessful") as String
 
     return wasSuccessful
+}
+//Returns null if theres an error or an arraylist with the posts
+suspend fun getSavedPosts(scope: CoroutineScope, token: String): ArrayList<String>?{
+    val savedActionResponse: HttpResponse = scope.async {
+        userClient.submitForm(
+            url = "$rootUserUrl/getSavedPosts",
+            formParameters = parameters {
+                append("token", token)
+            }
+        )
+    }.await()
+    val arr: java.util.ArrayList<String> = ArrayList<String>()
+    if (savedActionResponse.body<String>().contains("},{")) {
+        val toAddToArray = savedActionResponse.body<String>().split("},{").toMutableList()
+        for (item in toAddToArray) {
+            if (item == toAddToArray[0]) {
+                toAddToArray[0] = "$item}"
+            } else if (item == toAddToArray[toAddToArray.size - 1]) {
+                toAddToArray[toAddToArray.size - 1] = "{$item"
+            } else {
+                val indexOfItem = toAddToArray.indexOf(item)
+                toAddToArray[indexOfItem] = "{$item}"
+            }
+        }
+        arr.addAll(toAddToArray)
+        return arr
+    } else if(savedActionResponse.body<String>().contains("}")) {
+        arr.add(savedActionResponse.body())
+        return arr
+    } else {
+        return null
+    }
 }
 
 fun saveTokenToFile(context: Context, token: String) {

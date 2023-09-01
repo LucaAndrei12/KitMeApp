@@ -57,23 +57,23 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    composable(route = "savedScreen/{token}") {
+                    composable(route = "savedScreen") {
                         SavedScreen(
-                            token = it.arguments?.getString("token")!!,
+                            token = getToken(LocalContext.current),
                             navController = navController
                         )
                     }
 
-                    composable(route = "searchScreen/{token}") {
+                    composable(route = "searchScreen") {
                         SearchScreen(
-                            token = it.arguments?.getString("token")!!,
+                            token = getToken(LocalContext.current),
                             navController = navController
                         )
                     }
 
-                    composable(route = "userScreen/{token}") {
+                    composable(route = "userScreen") {
                         UserScreen(
-                            token = it.arguments?.getString("token")!!,
+                            token = getToken(LocalContext.current),
                             navController = navController
                         )
                     }
