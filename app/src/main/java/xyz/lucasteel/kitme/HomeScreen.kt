@@ -93,10 +93,11 @@ import xyz.lucasteel.kitme.logic.removePost
 import xyz.lucasteel.kitme.logic.savePostAction
 import xyz.lucasteel.kitme.ui.theme.justFamily
 import java.util.Date
+import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
 import kotlin.random.Random
 
-//TODO: Come up with idea to randomize lazy column key
+//TODO: Make like count and isLiked property recomposition-proof
 
 fun LazyListState.isScrolledToEnd() =
     layoutInfo.visibleItemsInfo.lastOrNull()?.index == layoutInfo.totalItemsCount - 1
@@ -168,7 +169,7 @@ fun HomeScreenContent(
         state = lazyColState,
         content = {
             items(items = viewModel.postsList.value,
-                key = { (Document.parse(it)["_id"] as ObjectId).toString() }) { postString ->
+                key = { Document.parse(it)["uuid"] as String }) { postString ->
                 val postDocument = Document.parse(postString)
                 PostComposable(
                     owner = postDocument["owner"]!! as String,
@@ -315,6 +316,7 @@ fun PostComposable(
                         modifier = Modifier
                             .padding(end = 3.dp)
                             .clickable {
+                                println("POST COMPOSABLE: $ownerOID")
                                 navController.navigate("profileScreen/$ownerOID/${viewModel.getToken()}")
                             }
                     )

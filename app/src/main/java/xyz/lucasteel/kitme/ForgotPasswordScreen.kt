@@ -45,6 +45,8 @@ import xyz.lucasteel.kitme.logic.updateOTPUsername
 import xyz.lucasteel.kitme.logic.verifyOTPUsername
 import xyz.lucasteel.kitme.ui.theme.justFamily
 
+//TODO: Fix padding on ForgotPasswordScreen and make no-internet-error proof
+
 @Composable
 fun ForgotPasswordScreen(navController: NavController) {
     val viewModel = ForgotPasswordScreenViewModel()

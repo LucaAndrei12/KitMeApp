@@ -43,7 +43,6 @@ import org.bson.types.ObjectId
 import xyz.lucasteel.kitme.logic.getUser
 import xyz.lucasteel.kitme.ui.theme.justFamily
 
-//TODO SNACKBAR SI RELOAD
 @Composable
 fun SavedScreen(token: String, navController: NavController) {
     val viewModel: SavedScreenViewModel = viewModel()
