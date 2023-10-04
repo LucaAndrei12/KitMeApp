@@ -119,7 +119,7 @@ suspend fun getFeed(token: String, scope: CoroutineScope): ArrayList<String> {
 
     if (getFeedResponse.body<String>().contains("wasSuccessful")) {
         val responseDocument = Document.parse(getFeedResponse.body<String>())
-        arr.add(responseDocument.get("wasSuccessful") as String)
+        arr.add(responseDocument.get("wasSuccessful") as String + "while getting feed")
     } else {
         if (getFeedResponse.body<String>().contains("},{")) {
             val toAddToArray = getFeedResponse.body<String>().split("},{").toMutableList()
@@ -150,7 +150,7 @@ suspend fun getPostInfo(postOID: String, scope: CoroutineScope): String {
     }.await()
     if (getPostResponse.body<String>().contains("wasSuccessful")) {
         val responseDocument = Document.parse(getPostResponse.body<String>())
-        postOrError = responseDocument["wasSuccessful"] as String
+        postOrError = responseDocument["wasSuccessful"] as String + "while getting post info"
     } else {
         postOrError = getPostResponse.body()
     }

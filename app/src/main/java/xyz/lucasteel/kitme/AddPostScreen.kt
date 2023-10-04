@@ -150,9 +150,7 @@ fun SubmitPostButton(
                 MainScope().launch {
 
                     val fileInputStream = context.contentResolver.openInputStream(viewModel.imageUri.value)
-
                     val fileContents =  fileInputStream?.readAllBytes()
-                   // val base64encodedPhoto = Base64.getEncoder().encodeToString(fileContents)
                     fileInputStream?.close()
 
                     viewModel.isSubmitLoading.value = true

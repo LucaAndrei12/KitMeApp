@@ -73,7 +73,6 @@ class MainActivity : ComponentActivity() {
 
                     composable(route = "userScreen") {
                         UserScreen(
-                            token = getToken(LocalContext.current),
                             navController = navController
                         )
                     }

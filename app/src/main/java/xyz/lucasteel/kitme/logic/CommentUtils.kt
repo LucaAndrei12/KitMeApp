@@ -6,10 +6,7 @@ import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.parameters
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
-import kotlinx.coroutines.future.asCompletableFuture
-import kotlinx.coroutines.launch
 import org.bson.Document
 
 val commentClient = LocalHttpClient().getClient()
@@ -60,20 +57,21 @@ suspend fun removeComment(token: String, commentOID: String, scope: CoroutineSco
 }
 
 //Returns "true" or an error message
-suspend fun likeCommmentAction(
+suspend fun likeCommentAction(
     token: String,
     commentOID: String,
-    isLike: Boolean,
+    value: Int,
     scope: CoroutineScope
 ): String {
     var wasSuccessful = "An error occurred."
 
     val likeCommentResponse: HttpResponse = scope.async {
         commentClient.submitForm(
-            url = rootCommentUrl + if (isLike) "/likeComment" else "/dislikeComment",
+            url = "$rootCommentUrl/likeComment",
             formParameters = parameters {
                 append("token", token)
                 append("commentOID", commentOID)
+                append("value", "$value")
             }
         )
     }.await()
@@ -85,18 +83,36 @@ suspend fun likeCommmentAction(
 
 //Returns json with the post or an error message. To tell them apart, use contains("{")
 suspend fun getCommentInfo(commentOID: String, scope: CoroutineScope): String {
-    var commentOrError = "An error occurred."
+    var commentOrError: String
 
     val getPostResponse = scope.async {
         postClient.get("$rootCommentUrl/getCommentContent/$commentOID")
     }.await()
     if (getPostResponse.body<String>().contains("wasSuccessful")) {
         val responseDocument = Document.parse(getPostResponse.body<String>())
-        commentOrError = responseDocument["wasSuccessful"] as String
+        commentOrError = responseDocument["wasSuccessful"] as String + "while getting Comment Info"
     } else {
         commentOrError = getPostResponse.body()
     }
 
     return commentOrError
+}
+
+//Returns error message or JSON array with all OIDs of desired comments
+suspend fun getUsersComments(userOID: String, scope: CoroutineScope): String {
+    var commentArrayOrError: String
+
+    val getComments = scope.async {
+        postClient.get("$rootCommentUrl/getUsersComments/$userOID")
+    }.await()
+
+    if (getComments.body<String>().contains("wasSuccessful")) {
+        val responseDocument = Document.parse(getComments.body<String>())
+        commentArrayOrError = responseDocument["wasSuccessful"] as String + "while getting User's comments"
+    } else {
+        commentArrayOrError = getComments.body<String>()
+    }
+
+    return commentArrayOrError
 }
 

@@ -64,6 +64,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -77,6 +78,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.navigation.compose.rememberNavController
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.google.accompanist.swiperefresh.SwipeRefresh
@@ -97,7 +99,7 @@ import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
 import kotlin.random.Random
 
-//TODO: Make like count and isLiked property recomposition-proof
+//TODO: CHECK INTERNET CONNECTION BEFORE DISPLAYING ANYTHING
 
 fun LazyListState.isScrolledToEnd() =
     layoutInfo.visibleItemsInfo.lastOrNull()?.index == layoutInfo.totalItemsCount - 1
@@ -279,10 +281,10 @@ fun PostComposable(
     isSavedDefault: Boolean
 ) {
     val circleColor = MaterialTheme.colorScheme.secondary
-    val isLiked = remember { mutableStateOf(0) }
-    val isSaved = remember { mutableStateOf(isSavedDefault) }
-    val isMenuExpanded = remember { mutableStateOf(false) }
-    val likes = remember { mutableStateOf(numberLikes) }
+    val isLiked = rememberSaveable { mutableStateOf(0) }
+    val isSaved = rememberSaveable { mutableStateOf(isSavedDefault) }
+    val isMenuExpanded = rememberSaveable { mutableStateOf(false) }
+    val likes = rememberSaveable { mutableStateOf(numberLikes) }
 
     Card(
         modifier = Modifier
@@ -316,7 +318,6 @@ fun PostComposable(
                         modifier = Modifier
                             .padding(end = 3.dp)
                             .clickable {
-                                println("POST COMPOSABLE: $ownerOID")
                                 navController.navigate("profileScreen/$ownerOID/${viewModel.getToken()}")
                             }
                     )
@@ -330,49 +331,65 @@ fun PostComposable(
                         modifier = Modifier.padding(start = 3.dp)
                     )
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    if (isOwnedByUser) {
-                        if (isMenuExpanded.value) {
-                            DropdownMenu(
-                                expanded = isMenuExpanded.value,
-                                onDismissRequest = { isMenuExpanded.value = false }) {
-                                DropdownMenuItem(
-                                    text = { Text("Delete post") },
-                                    onClick = {
-                                        MainScope().launch(Dispatchers.IO) {
-                                            val removePostResponse = removePost(
-                                                token = viewModel.getToken(),
-                                                postOID = postOID,
-                                                scope = MainScope()
-                                            )
-                                            if (removePostResponse.equals("true")) {
-                                                snackbarHostState.showSnackbar("Post deleted successfully.")
-                                            } else {
-                                                snackbarHostState.showSnackbar("Error: $removePostResponse")
-                                            }
-                                        }
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "delete button"
-                                        )
-                                    })
+                if (isOwnedByUser) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable {
+                            MainScope().launch(Dispatchers.IO) {
+                                val removePostResponse = removePost(
+                                    token = viewModel.getToken(),
+                                    postOID = postOID,
+                                    scope = MainScope()
+                                )
+                                if (removePostResponse == "true") {
+                                    snackbarHostState.showSnackbar("Post deleted successfully. Please refresh.")
+                                } else {
+                                    snackbarHostState.showSnackbar("Error: $removePostResponse")
+                                }
                             }
-                        }
-                        IconButton(
-                            onClick = { isMenuExpanded.value = !isMenuExpanded.value }
-                        ) {
+                        }) {
+                            Text(text = "Delete")
                             Icon(
-                                imageVector = Icons.Default.MoreVert,
-                                contentDescription = "dropdown menu"
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = "delete post",
+                                modifier = Modifier.padding(end = 5.dp)
                             )
                         }
-                    }
+                    /*     DropdownMenu(
+                             expanded = isMenuExpanded.value,
+                             onDismissRequest = { isMenuExpanded.value = false }) {
+                             DropdownMenuItem(
+                                 text = { Text("Delete post") },
+                                 onClick = {
+                                     MainScope().launch(Dispatchers.IO) {
+                                         val removePostResponse = removePost(
+                                             token = viewModel.getToken(),
+                                             postOID = postOID,
+                                             scope = MainScope()
+                                         )
+                                         if (removePostResponse == "true") {
+                                             snackbarHostState.showSnackbar("Post deleted successfully.")
+                                         } else {
+                                             snackbarHostState.showSnackbar("Error: $removePostResponse")
+                                         }
+                                     }
+                                 },
+                                 leadingIcon = {
+                                     Icon(
+                                         Icons.Default.Delete,
+                                         contentDescription = "delete button"
+                                     )
+                                 })
+                         }
+                     }
+                     IconButton(
+                         onClick = { isMenuExpanded.value = !isMenuExpanded.value }
+                     ) {
+                         Icon(
+                             imageVector = Icons.Default.MoreVert,
+                             contentDescription = "dropdown menu"
+                         )
+                     }
+
+                     */
                 }
             }
             Text(
@@ -381,6 +398,7 @@ fun PostComposable(
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(start = 10.dp, end = 5.dp, top = 5.dp, bottom = 5.dp)
             )
+
             SubcomposeAsyncImage(
                 model = ImageRequest.Builder(LocalContext.current)
                     .data(resource)
@@ -391,10 +409,14 @@ fun PostComposable(
                 contentScale = ContentScale.FillWidth,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 10.dp, end = 10.dp)
+                    .padding(
+                        start = 10.dp,
+                        end = 10.dp
+                    )
                     .clip(RoundedCornerShape(20.dp))
                     .align(Alignment.CenterHorizontally)
             )
+
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -445,7 +467,6 @@ fun PostComposable(
                             }
                         }
                     }
-
                     AnimatedContent(targetState = likes.value, label = "") {
                         Text(
                             text = "$it",

@@ -2,9 +2,13 @@ package xyz.lucasteel.kitme.logic
 
 import android.content.Context
 import io.ktor.client.call.body
+import io.ktor.client.request.forms.formData
 import io.ktor.client.request.forms.submitForm
+import io.ktor.client.request.forms.submitFormWithBinaryData
 import io.ktor.client.request.get
 import io.ktor.client.statement.HttpResponse
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
 import io.ktor.http.parameters
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -21,19 +25,31 @@ const val fileName = "token-file"
 
 //Returns A JSON with the user credentials or an error message
 suspend fun getUser(userID: String, scope: CoroutineScope): String {
-    var wasSuccessful = "An error occurred."
+    var wasSuccessful: String
 
         val getUserResponse = scope.async(Dispatchers.IO) {
             userClient.get("$rootUserUrl/getUser/$userID")
         }.await()
         val responseDocument = Document.parse(getUserResponse.body<String>())
         if (responseDocument.toJson().contains("wasSuccessful")) {
-            wasSuccessful = responseDocument.get("wasSuccessful") as String
+            wasSuccessful = responseDocument.get("wasSuccessful") as String + "while profile info"
         } else {
             wasSuccessful = responseDocument.toJson()
         }
 
     return wasSuccessful
+}
+
+//Returns oid as string or returns "false"
+suspend fun getUserID(token: String, scope: CoroutineScope): String {
+    val getOIDUser = scope.async(Dispatchers.IO) {
+        userClient.get("$rootUserUrl/getOIDToken/$token")
+    }.await()
+    if(getOIDUser.body<String>().contains("wasSuccessful")){
+        return "false"
+    } else {
+        return getOIDUser.body<String>()
+    }
 }
 
 //Returns either "true" if the operation was successful or and error message - emails the user
@@ -205,15 +221,17 @@ suspend fun forgotPassword(
 }
 
 //Returns either "true" if the operation was successful or and error message
-//TODO Make with multipart
-fun updatePFP(scope: CoroutineScope, token: String, base64image: String): String {
+fun updatePFP(scope: CoroutineScope, token: String, image: ByteArray): String {
     var wasSuccessful = "An error occurred."
     scope.launch(Dispatchers.IO) {
-        val updatePicture: HttpResponse = userClient.submitForm(
+        val updatePicture: HttpResponse = userClient.submitFormWithBinaryData(
             url = "$rootUserUrl/updateProfilePicture",
-            formParameters = parameters {
+            formData = formData {
                 append("token", token)
-                append("base64image", base64image)
+                append("image", image, Headers.build {
+                    append(HttpHeaders.ContentType, "image/png")
+                    append(HttpHeaders.ContentDisposition, "filename=\"ktor_logo.png\"")
+                })
             }
         )
         val responseDocument = Document.parse(updatePicture.body<String>())
@@ -290,7 +308,13 @@ fun getToken(context: Context): String {
         return ""
     }
     val scanner = Scanner(tokenFile)
-    val content = scanner.nextLine()
+    var content: String
+    if(scanner.hasNextLine()){
+        content = scanner.nextLine()
+    } else {
+        content = ""
+    }
+
     scanner.close()
     return content
 }
