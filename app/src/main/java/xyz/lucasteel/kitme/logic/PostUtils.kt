@@ -45,17 +45,6 @@ suspend fun addPost(
         )
     }.await()
 
-    /*val addPostResponse: HttpResponse = scope.async {
-        postClient.submitForm(
-            url = "$rootPostUrl/addPost",
-            formParameters = parameters {
-                append("token", token)
-                append("image", base64image)
-                append("title", title)
-            }
-        )
-    }.await() */
-
     val responseDocument = Document.parse(addPostResponse.body<String>())
     return responseDocument.get("wasSuccessful") as String?
 }
@@ -156,6 +145,21 @@ suspend fun getPostInfo(postOID: String, scope: CoroutineScope): String {
     }
 
     return postOrError
+}
+
+//Returns response JSON. IF contains "queryResult", good. IF contains "wasSuccessful", bad.
+suspend fun search(isPostSearch: Boolean, query: String, scope: CoroutineScope): String{
+    val searchResponse: HttpResponse = scope.async {
+        postClient.submitForm(
+            url = "$rootPostUrl/searchQuery",
+            formParameters = parameters {
+                append("isPostSearch", isPostSearch.toString())
+                append("query", query)
+            }
+        )
+    }.await()
+
+    return searchResponse.body()
 }
 
 

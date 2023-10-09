@@ -98,7 +98,7 @@ fun ProfileScreenContent(
         val dateJoined = userDoc["dateJoined"] as String
         val pfpLink = userDoc["profilePicture"] as String
 
-        Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.fillMaxWidth()) {
             BackButton(navController = navController)
             ProfileInfoBrief(
                 username = username,
@@ -117,7 +117,8 @@ fun ProfileScreenContent(
                             fontFamily = justFamily,
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(start = 10.dp)
+                            modifier = Modifier.padding(start = 10.dp),
+                            textAlign = TextAlign.Start
                         )
                     }
                     items(items = viewModel.userPostList.value) { postDocument ->

@@ -6,8 +6,11 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import org.bson.Document
 import org.bson.types.ObjectId
@@ -26,7 +29,9 @@ class UserScreenViewModel : ViewModel(), PostComposableInterface {
     val arePostsSelected = mutableStateOf(true)
     val isLoading = mutableStateOf(true)
     val updatePFPUri = mutableStateOf(Uri.EMPTY)
-    val isBottomSheetVisible = mutableStateOf(false)
+
+    private val _isLoading = MutableStateFlow(false)
+    val isSwipeLoading = _isLoading.asStateFlow()
 
     override fun getToken(): String {
         return token.value
@@ -58,26 +63,23 @@ class UserScreenViewModel : ViewModel(), PostComposableInterface {
 
                 try {
                     val postOIDList = tempUserDocument.getList("posts", ObjectId().javaClass)
-                    val tempPostArray = ArrayList<Document>()
 
                     for (currentPostOID in postOIDList) {
                         val currentPostData =
                             getPostInfo(postOID = currentPostOID.toString(), scope = MainScope())
                         if (currentPostData.contains("{")) {
                             val currentPostDocument = Document.parse(currentPostData)
-                            tempPostArray.add(currentPostDocument)
+                            if (!userPostsList.value.contains(currentPostDocument)) {
+                                userPostsList.value.add(currentPostDocument)
+                            }
                         } else {
                             snackbarHostState.showSnackbar("Error: $currentPostData")
                             isLoading.value = false
                         }
                     }
-                    println(tempPostArray)
-                    userPostsList.value.addAll(tempPostArray)
 
                     loadUsersComments(snackbarHostState, userOID = userOID)
-
                     isLoading.value = false
-
                 } catch (e: Exception) {
                     snackbarHostState.showSnackbar("Error: ${e.message} while loading from server.")
                     isLoading.value = false
@@ -97,16 +99,32 @@ class UserScreenViewModel : ViewModel(), PostComposableInterface {
                 for (commentOID in commentIDArray) {
                     val commentInfo = getCommentInfo(commentOID = commentOID, scope = MainScope())
                     if (commentInfo.contains("{")) {
-                        userCommentList.value.add(Document.parse(commentInfo))
+                        val tempCommentDoc = Document.parse(commentInfo)
+                        if (!userCommentList.value.contains(tempCommentDoc)) {
+                            userCommentList.value.add(tempCommentDoc)
+                        }
                     } else {
                         snackbarHostState.showSnackbar("Error: $commentInfo loading comments WHILE PARSING ARRAY.")
+                        _isLoading.value = false
+
                     }
                 }
+                _isLoading.value = false
+
             } else {
                 snackbarHostState.showSnackbar("Error: $unparsedCommentArray loading comments intitally.")
+                _isLoading.value = false
             }
-        } catch (e: Exception){
+        } catch (e: Exception) {
             snackbarHostState.showSnackbar("Error: ${e.message} loading comments ERROR.")
+            _isLoading.value = false
+        }
+    }
+
+    fun refreshPost(snackbarHostState: SnackbarHostState){
+        viewModelScope.launch {
+            _isLoading.value = true
+            loadData(snackbarHostState = snackbarHostState, token = token.value)
         }
     }
 }

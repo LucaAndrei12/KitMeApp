@@ -25,42 +25,51 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import com.google.accompanist.swiperefresh.SwipeRefresh
+import com.google.accompanist.swiperefresh.rememberSwipeRefreshState
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import org.bson.types.ObjectId
 import xyz.lucasteel.kitme.logic.getToken
 import xyz.lucasteel.kitme.ui.theme.justFamily
 
-//TODO: Add refresh and logout
-
 @Composable
 fun UserScreen(navController: NavController) {
     val userScreenViewModel: UserScreenViewModel = viewModel()
     val userScreenSnackbarHost = remember { SnackbarHostState() }
+    val isLoading by userScreenViewModel.isSwipeLoading.collectAsState()
+    val swipeRefreshState = rememberSwipeRefreshState(isRefreshing = isLoading)
 
     userScreenViewModel.loadData(
         snackbarHostState = userScreenSnackbarHost,
         getToken(LocalContext.current)
     )
 
-    Scaffold(snackbarHost = { SnackbarHost(userScreenSnackbarHost) }, bottomBar = {
-        BottomNavigation(
-            navController = navController
-        )
-    }) {
-        UserScreenContent(
-            surfacePadding = it,
-            viewModel = userScreenViewModel,
-            navController = navController,
-            snackbarHostState = userScreenSnackbarHost
-        )
+    SwipeRefresh(
+        state = swipeRefreshState,
+        onRefresh = { userScreenViewModel.refreshPost(snackbarHostState = userScreenSnackbarHost) }) {
+        Scaffold(snackbarHost = { SnackbarHost(userScreenSnackbarHost) }, bottomBar = {
+            BottomNavigation(
+                navController = navController
+            )
+        }) {
+            UserScreenContent(
+                surfacePadding = it,
+                viewModel = userScreenViewModel,
+                navController = navController,
+                snackbarHostState = userScreenSnackbarHost
+            )
+        }
     }
 }
 
@@ -143,34 +152,47 @@ fun UnderUserInfoContent(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                items(items = if (arePostsSelected) viewModel.userPostsList.value else viewModel.userCommentList.value) {
-                    if (arePostsSelected) {
-                        PostComposable(
-                            owner = it["owner"]!! as String,
-                            ownerOID = (it["ownerOID"]!! as ObjectId).toString(),
-                            title = it["title"]!! as String,
-                            datePosted = it["postingDate"]!! as String,
-                            resource = it["resource"]!! as String,
-                            numberLikes = it["likes"]!! as Int,
-                            postOID = (it["_id"]!! as ObjectId).toString(),
-                            navController = navController,
-                            viewModel = viewModel,
-                            snackbarHostState = snackbarHostState,
-                            isOwnedByUser = true,
-                            isOnHomePage = false,
-                            isSavedDefault = false
-                        )
+                if (arePostsSelected && viewModel.userPostsList.value.isNotEmpty() || !arePostsSelected && viewModel.userCommentList.value.isNotEmpty())
+                    items(items = if (arePostsSelected) viewModel.userPostsList.value else viewModel.userCommentList.value) {
+                        if (arePostsSelected) {
+                            PostComposable(
+                                owner = it["owner"]!! as String,
+                                ownerOID = (it["ownerOID"]!! as ObjectId).toString(),
+                                title = it["title"]!! as String,
+                                datePosted = it["postingDate"]!! as String,
+                                resource = it["resource"]!! as String,
+                                numberLikes = it["likes"]!! as Int,
+                                postOID = (it["_id"]!! as ObjectId).toString(),
+                                navController = navController,
+                                viewModel = viewModel,
+                                snackbarHostState = snackbarHostState,
+                                isOwnedByUser = true,
+                                isOnHomePage = false,
+                                isSavedDefault = false
+                            )
+                        } else {
+                            CommentComposable(
+                                commentOID = (it["_id"]!! as ObjectId).toString(),
+                                ownerOID = (it["ownerOID"]!! as ObjectId).toString(),
+                                likeCount = it["likes"]!! as Int,
+                                content = it["content"]!! as String,
+                                owner = it["owner"]!! as String,
+                                navController = navController,
+                                viewModel = viewModel,
+                                snackbarHostState = snackbarHostState,
+                                isOwnedByUser = true
+                            )
+                        }
                     } else {
-                        CommentComposable(
-                            commentOID = (it["_id"]!! as ObjectId).toString(),
-                            ownerOID = (it["ownerOID"]!! as ObjectId).toString(),
-                            likeCount = it["likes"]!! as Int,
-                            content = it["content"]!! as String,
-                            owner = it["owner"]!! as String,
-                            navController = navController,
-                            viewModel = viewModel,
-                            snackbarHostState = snackbarHostState,
-                            isOwnedByUser = true
+                    item {
+                        Text(
+                            text = "Nothing to show here :)",
+                            fontFamily = justFamily,
+                            style = MaterialTheme.typography.headlineMedium,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .padding(10.dp)
+                                .fillMaxWidth()
                         )
                     }
                 }
