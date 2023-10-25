@@ -117,15 +117,18 @@ fun HomeScreen(navController: NavController) {
     homeScreenViewModel.setToken(getToken(LocalContext.current))
     homeScreenViewModel.getFeed(homeSnackbarHostState, navController)
 
+    /*
     val endOfListReached by remember {
         derivedStateOf {
             lazyColState.isScrolledToEnd()
         }
     }
 
+
     LaunchedEffect(endOfListReached) {
         homeScreenViewModel.updateWithPosts(homeSnackbarHostState, navController)
     }
+     */
 
     SwipeRefresh(
         state = swipeRefreshState,
@@ -149,8 +152,7 @@ fun HomeScreen(navController: NavController) {
                     navController = navController,
                     viewModel = homeScreenViewModel,
                     snackbarHostState = homeSnackbarHostState,
-                    lazyColState = lazyColState,
-                    isAtEndOfList = endOfListReached
+                    lazyColState = lazyColState
                 )
             }
         }
@@ -162,8 +164,7 @@ fun HomeScreenContent(
     navController: NavController,
     viewModel: HomeScreenViewModel,
     snackbarHostState: SnackbarHostState,
-    lazyColState: LazyListState,
-    isAtEndOfList: Boolean
+    lazyColState: LazyListState
 ) {
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -189,7 +190,7 @@ fun HomeScreenContent(
                     isSavedDefault = false
                 )
             }
-            if (isAtEndOfList) {
+            /*  if (isAtEndOfList) {
                 item {
                     Box(
                         Modifier
@@ -201,6 +202,38 @@ fun HomeScreenContent(
                                 .padding(5.dp)
                                 .align(Alignment.Center)
                         )
+                    }
+                }
+           }
+             */
+            item {
+                if(!viewModel.isUpdateLoading.value) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .wrapContentHeight()
+                            .clickable {
+                                viewModel.updateWithPosts(
+                                    snackbarHostState,
+                                    navController
+                                )
+                            }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.align(Alignment.Center)
+                        ) {
+                            Text(
+                                text = "Load more",
+                                fontFamily = justFamily,
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Icon(imageVector = Icons.Default.Refresh, contentDescription = "")
+                        }
+                    }
+                } else {
+                    Box(Modifier.fillMaxWidth()){
+                        CircularProgressIndicator(Modifier.align(Alignment.Center))
                     }
                 }
             }
@@ -332,7 +365,9 @@ fun PostComposable(
                     )
                 }
                 if (isOwnedByUser) {
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.clickable {
                             MainScope().launch(Dispatchers.IO) {
                                 val removePostResponse = removePost(
                                     token = viewModel.getToken(),
@@ -346,13 +381,13 @@ fun PostComposable(
                                 }
                             }
                         }) {
-                            Text(text = "Delete")
-                            Icon(
-                                imageVector = Icons.Default.Delete,
-                                contentDescription = "delete post",
-                                modifier = Modifier.padding(end = 5.dp)
-                            )
-                        }
+                        Text(text = "Delete")
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "delete post",
+                            modifier = Modifier.padding(end = 5.dp)
+                        )
+                    }
                     /*     DropdownMenu(
                              expanded = isMenuExpanded.value,
                              onDismissRequest = { isMenuExpanded.value = false }) {
